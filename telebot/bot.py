@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import os
 from typing import Iterable
+import re
+
+#database_model.py
+import database_model 
 
 import httpx
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message
-from telegram.constants import ChatAction
+from telegram.constants import (
+    ChatAction,
+    ParseMode
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -17,13 +24,12 @@ from telegram.ext import (
     CallbackQueryHandler,
 
 )
+import datetime
 
-def _get_env(name: str, *, default: str | None = None) -> str:
-    value = os.getenv(name, default)
-    if value is None or not value.strip():
-        raise RuntimeError(f"Missing environment variable: {name}")
-    return value.strip()
-
+# Load environment variables from .env file
+load_dotenv()
+API_BASE_URL = os.getenv("API_BASE_URL").strip()
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN").strip()
 
 def _parse_admin_ids(raw: str | None) -> set[int]:
     if not raw:
@@ -41,6 +47,10 @@ def _parse_admin_ids(raw: str | None) -> set[int]:
                 f"Bad value: {part!r}"
             )
     return ids
+
+def is_alphanumeric(text):
+    return any(i.isdigit() for i in text)
+
 
 # ==================== TELEGRAM COMMAND HANDLERS ====================
 # /start, /help, and other basic commands
@@ -61,139 +71,314 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "  /viewCards - view flashcards\n"
         "  /dropCard - drop a card\n"
     )
-
-async def send_card(context: ContextTypes.DEFAULT_TYPE):
-    # This is the callback function that gets executed
-    job = context.job
-    await context.bot.send_message(chat_id=job.chat_id, text="Reminder!")
+    
 
     
-async def view_cards(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        context.job_queue.jobs()
-    )
-    """"""
-    
-async def drop_card(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    context.job_queue.get_jobs_by_name("")[0].schedule_removal()
-
-    """"""  
-    
-## Message handler
+# ==================== MESSAGING CLAUDE ====================
 
 async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # if not update.message or not update.message.text:
-    #     return
+    if not update.message or not update.message.text:
+        return
 
-    # api_url: str = context.bot_data["API_URL"]
-    # user_text = update.message.text.strip()
+    api_url: str = context.bot_data["API_BASE_URL"]
+    user_text = update.message.text.strip()
 
-    # if not user_text:
-    #     await update.message.reply_text("Send some text and I’ll ask Claude.")
-    #     return
+    if not user_text:
+        await update.message.reply_text("Send some text and I’ll ask Claude.")
+        return
 
-    # await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
 
-    # try:
-    #     answer = await _call_rag_chat(api_url, user_text)
-    #     await update.message.reply_text(answer)
-    # except httpx.ConnectError:
-    #     await update.message.reply_text(
-    #         "I can’t reach Claude's API.\n"
-    #         "Make sure your backend is running (Uvicorn/FastAPI), usually at http://localhost:8000."
-    #     )
-    # except httpx.HTTPStatusError as e:
-    #     await update.message.reply_text(f"API error: {e.response.status_code} {e.response.text}")
-    # except Exception as e:
-    #     await update.message.reply_text(f"Error: {e}")
+    try:
+        answer = await _call_claude(api_url, user_text)
+        await update.message.reply_text(answer)
+    except httpx.ConnectError:
+        await update.message.reply_text(
+            "I can’t reach Claude's API.\n"
+            "Make sure your backend is running."
+        )
+    except httpx.HTTPStatusError as e:
+        await update.message.reply_text(f"API error: {e.response.status_code} {e.response.text}")
+    except Exception as e:
+        await update.message.reply_text(f"Error: {e}")
     await update.message.reply_text("hi!")
     
 
 # ==================== TELEGRAM STATE HANDLERS ====================
 # new_card states
 # Define states as constants
-CONTENT, ANSWER, FREQUENCY = range(3)
-async def new_card_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    keyboard = [
-        [InlineKeyboardButton("Yay!", callback_data="yes"), 
-         InlineKeyboardButton("Nay!", callback_data="no")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
+keyboard = [[
+    InlineKeyboardButton("Yay!", callback_data="yes"), 
+    InlineKeyboardButton("Nay!", callback_data="no")
+],]
+reply_markup = InlineKeyboardMarkup(keyboard)
+QUESTION, CONTENT, FREQUENCY, CONFIRM, CONFIRM_BTN = range(5)
+
+async def new_card_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None: 
+    context.user_data["is_invalid"] = False;   
     await update.message.reply_text(f"Alright, let's make a new flashcard :3", 
                                     reply_markup=reply_markup)
+    context.user_data["previous_state"] = "STARTCARD"
+    return CONFIRM_BTN
+
+#QUESTION
+async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None: 
+    card_name = update.message.text
+    while (any(job.name == card_name for job in context.job_queue.jobs())):
+        retry_name
+            
+    context.user_data["card_name"] = card_name    
+    await update.message.reply_text(text="What is the question?")
+    
+    context.user_data["previous_state"] = "QUESTION"
     return CONTENT
 
-# Button click handler
-async def new_card_button(update: Update, context: CallbackContext) -> int:
-    query = update.callback_query
-    await query.answer()
 
-    if query.data == "yes":
-        await query.message.reply_text(text="You said yay! :D")
-        await query.message.reply_text(text="What is the question?")
-        return ANSWER
-    elif query.data == "no":
-        await query.message.reply_text(text="You said nay! D: Goodbye!")
-        return ConversationHandler.END
-    else:
-        await query.message.reply_text(text="Unknown option selected.")
-        return ConversationHandler.END
-    
-async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def retry_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None: 
+    await update.message.reply_text(text="Oh dear, looks like " + card_name + " already exists! Please give me another name!" )
+    return QUESTION
+
+
+#CONTENT
+async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE): 
+
     card_content = update.message.text
     context.user_data['content'] = card_content
-    await update.message.reply_text(f"""
-<b>Ok, so the question will be: </b>
-{card_content}
-===========================================
-what will the answer be? 
-    """)
+    card_name = context.user_data["card_name"]    
+    
+    text = f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>\n" + ("_" * 25)  + "\n<b>What will the answer be?</b>"
+    await update.message.reply_text(text, parse_mode='HTML')
+    
+    context.user_data["previous_state"] = "CONTENT"
     
     return FREQUENCY
 
+#FREQUENCY
 async def new_card_frequency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     card_answer = update.message.text
+    context.user_data['answer'] = card_answer
     card_content = context.user_data['content']
+    card_name = context.user_data["card_name"]    
     
-    keyboard = [
-        [InlineKeyboardButton("Daily", callback_data="option1")],
-        [InlineKeyboardButton("Hourly", callback_data="option2")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>"
+                                    + "\n<b>and the answer will be: </b>\n<code>" + card_answer + "</code>\n" + ("_" * 25)  
+                                    + "\n<b><i>In terms of hours or days, How often should I send this card to you?</i></b>"
+                                    ,parse_mode='HTML')
+    context.user_data["previous_state"] = "FREQUENCY"
     
-    await update.message.reply_text(
-        f"""
-So, the question will be: 
-{card_content} 
-and the answer will be: 
-{card_answer}
-How often should I send this card to you?
-        """,
-        reply_markup=reply_markup,
-        # parse_mode=<e.ParseMode.HTML
+    return CONFIRM
+
+#CONFIRM
+async def new_card_confirm(update: Update, context: CallbackContext) -> int:
+    card_answer = context.user_data['answer']
+    card_content = context.user_data['content']
+    card_frequency_text = update.message.text.lower().strip()
+    card_name = context.user_data["card_name"]    
+    
+    # extract timing
+    pattern = r'(\d+\.?\d*)\s*(day?|hour?|minute?|min?|second?|sec?)'
+    matches = re.findall(pattern, card_frequency_text)
+    
+    times = [(float(num), unit.lower()) for num, unit in matches]
+    timeLength = 0;
+    
+    for val, unit in times:
+        if unit.startswith("d"):  
+            timeLength += val * 86400
+        elif unit.startswith("h"):  
+            timeLength += val * 3600
+        elif unit.startswith("m"):  
+            timeLength += val * 60
+        else:  
+            timeLength += val
+                
+    if (timeLength > 0):
+        timeString = ""
+        days = timeLength // 86400
+        hours = (timeLength % 86400) // 3600
+        minutes = (timeLength % 3600) // 60
+        seconds = timeLength % 60
+        
+        if days: timeString += str(int(days)) + " days, "
+        if hours: timeString += str(int(hours)) + " hours, "
+        if minutes: timeString += str(int(minutes)) + " minutes, "
+        if seconds: timeString += str(int(seconds)) + " seconds, "
+        
+        timeString = timeString[:-2]
+        
+        nextTime = (datetime.datetime.now()+ datetime.timedelta(seconds=timeLength)).strftime("%H:%M:%S %p")
+        
+        await update.message.reply_text(f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>\n" 
+                                        + "\n<b>and the answer will be: </b>\n<code>" + card_answer + "</code>\n" + ("_" * 25)  
+                                        + f"\nIn terms of hours or days, I will send this card in <code>{timeString}</code>!"
+                                        + f"\n\nOr, at approximately <code>{nextTime}</code>!"
+                                        + "\n\n<b>Is this correct?</b>",parse_mode='HTML',reply_markup=reply_markup
         )
-    
-    return ConversationHandler.END
-
-# Button click handler
-async def frequency_button(update: Update, context: CallbackContext) -> int:
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == "daily":
-        await query.message.reply_text(text="What is the question?")
-        return ANSWER
-    elif query.data == "hourly":
-        await query.message.reply_text(text="You said nay! D: Goodbye!")
-        return ConversationHandler.END
+        context.user_data['intervals'] = timeLength;
+        context.user_data["previous_state"] = "CONFIRM"
+        
+        return CONFIRM_BTN
+        
     else:
-        await query.message.reply_text(text="Unknown option selected.")
-        return ConversationHandler.END
-
+        context.user_data["is_invalid"] = True;
+        await update.message.reply_text(f"Whoops! Looks like you made an invalid input, do you still want to continue?"
+                                        ,parse_mode='HTML',reply_markup=reply_markup)
+        return CONFIRM_BTN
+        
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Command cancelled!")
     return ConversationHandler.END
+
+
+# ==================== BUTTON HANDLERS ====================
+# Button click handler
+#CONFIRM_BTN
+async def confirm_button(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    
+    previous_state = context.user_data["previous_state"] 
+    await query.answer()
+
+    if query.data == "yes":
+        ##invalid input found
+        if (context.user_data["is_invalid"]):
+            context.user_data["is_invalid"] = False;
+            await query.message.reply_text(text="Ok, let's try again!")
+            match previous_state:
+                case "FREQUENCY":
+                    card_name = context.user_data["card_name"]    
+                    card_answer = context.user_data['answer'] 
+                    card_content = context.user_data['content']
+                    await query.message.reply_text(
+                        f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>"  
+                        + "\n<b>and the answer will be: </b>\n<code>" + card_answer + "</code>\n" + ("_" * 25)  
+                        + "\n<b><i>In terms of hours or days, How often should I send this card to you?</i></b>"
+                        ,parse_mode='HTML')
+                    context.user_data["previous_state"] = "FREQUENCY"
+                    
+                    return CONFIRM
+        else:
+            match previous_state:
+                case "STARTCARD":
+                    await query.message.reply_text(f"What will you call this card? :D", parse_mode='HTML')
+                    return QUESTION
+                    
+                case "CONFIRM":
+                    card_repeat = context.user_data['intervals']    
+                    card_name = context.user_data["card_name"]    
+                    card_answer = context.user_data['answer'] 
+                    card_content = context.user_data['content']
+
+                    chat_id = update.effective_chat.id
+                    user_id = update.effective_user.id  
+                    
+                    content = f"<b><u>{card_name}</u></b>\n\n<b>Question:</b>\n<code>" + card_content + "</code>\n" + ("_" * 25) + "\n<b>Answer:</b>\n<span class='tg-spoiler'><b>" + card_answer + "</b></span>"
+                                
+                    await query.message.reply_text(text="Alright, card created!! Here is a preview of your new card!")
+                    await query.message.reply_text(
+                                text=content
+                                , parse_mode= "HTML")
+                    
+                    database_model.insert_flashcard(chat_id, card_name, content, float(card_repeat));
+                    
+                    flashcard_data = database_model.select_flashcard(chat_id, card_name);
+                    
+                    context.job_queue.run_repeating(
+                        card_job,
+                        interval=float(flashcard_data[3]),        # seconds
+                        name=flashcard_data[1],
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        data=flashcard_data[2]
+                    )
+                    return ConversationHandler.END
+                    
+                    
+    else:
+        await query.message.reply_text("You said nay D: Command cancelled!")
+        return ConversationHandler.END
+    
+
+
+# ==================== CRUD CARD ====================
+# sets card content to schedule
+
+async def card_job(context: CallbackContext):
+    flashcard_data = context.job.data;
+
+    await context.bot.send_message(chat_id=context.job.chat_id, text="DING DING! Time for a recall!!")
+    await context.bot.send_message(chat_id=context.job.chat_id, 
+                                text=flashcard_data
+                                , parse_mode= "HTML")
+    
+
+async def view_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    jobs = context.job_queue.jobs()
+    if not jobs:
+        await update.message.reply_text("No jobs running.")
+        return
+
+    lines = []
+    for job in jobs:
+        next_run = job.next_t  # datetime of next scheduled run
+        if next_run:
+            next_str = next_run.astimezone().strftime("%H:%M:%S %p")
+        else:
+            next_str = "N/A"
+        lines.append(f"• <code>{job.name}</code> | next run: {next_str}")
+
+    await update.message.reply_text("<b> Running jobs:</b>\n" + "\n".join(lines), parse_mode = "HTML")
+    
+    
+
+keyboard = [[
+    InlineKeyboardButton("Yes, delete this.", callback_data="yes"), 
+    InlineKeyboardButton("Nope!", callback_data="no")
+],]
+delete_markup = InlineKeyboardMarkup(keyboard)
+
+DELETE_CONFIRM, DELETE_BTN = range(2);
+async def drop_card_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Type the name of the card you want to delete.")
+    return DELETE_CONFIRM
+    
+async def drop_card_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    name = update.message.text
+    
+    jobs = context.job_queue.jobs()
+    if not jobs:
+        await update.message.reply_text("No jobs are currently running. Delete cancelled.")
+        return ConversationHandler.END
+
+    if (bool(context.job_queue.get_jobs_by_name(name))):
+        context.user_data["card_name"] = name    
+        
+        await update.message.reply_text(f"Are you sure you want to delete <code>{name}</code>?", parse_mode="HTML", reply_markup = delete_markup)
+        return DELETE_BTN
+    
+    await update.message.reply_text(f"Unable to find <code>{name}</code>. Delete cancelled.", parse_mode="HTML")
+    return ConversationHandler.END
+    
+    
+    
+async def delete_button(update: Update, context: CallbackContext) -> int:
+    query = update.callback_query
+    
+    await query.answer()
+
+    card_name = context.user_data["card_name"]
+    if query.data == "yes":
+        database_model.delete_flashcard(update.effective_chat.id, card_name);
+        for job in context.job_queue.get_jobs_by_name(card_name):
+            job.schedule_removal()
+            
+        await query.message.reply_text(f"Deleted <code>{card_name}</code> D:", parse_mode="HTML")
+    else:
+        await query.message.reply_text("Delete cancelled.")
+    
+    return ConversationHandler.END
+        
+
 # ==================== API COMMUNICATION ====================
 # Call the backend
 
@@ -218,15 +403,11 @@ async def _call_claude(api_url: str, message: str) -> str:
 # Sets up the bot, registers all handlers, and starts polling
 
 def main() -> None:
-    load_dotenv()
-
-    token = _get_env("TELEGRAM_BOT_TOKEN")
-    # api_url = os.getenv("API_BASE_URL", "http://localhost:8080").strip()
     admin_ids = _parse_admin_ids(os.getenv("TELEGRAM_ADMIN_IDS"))
 
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # app.bot_data["API_BASE_URL"] = api_url
+    app.bot_data["API_BASE_URL"] = API_BASE_URL
     app.bot_data["TELEGRAM_ADMIN_IDS"] = admin_ids
 
     app.add_handler(CommandHandler("start", start))
@@ -234,17 +415,25 @@ def main() -> None:
     app.add_handler(ConversationHandler(
         entry_points= [CommandHandler("newCard", new_card_start)],
         states={
-            CONTENT: [CallbackQueryHandler(new_card_button)],
-            ANSWER: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_card_answer)],
+            QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_card_question)],
+            CONTENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_card_answer)],
             FREQUENCY: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_card_frequency)],
+            CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_card_confirm)],
+            CONFIRM_BTN: [CallbackQueryHandler(confirm_button)],
         },
         fallbacks=[CommandHandler('cancel', cancel)]
         ))
     app.add_handler(CommandHandler("viewCards", view_cards))
-    # app.add_handler(CommandHandler("dropCard", dropCard))
+    app.add_handler(ConversationHandler(
+        entry_points= [CommandHandler("dropCard", drop_card_start)],
+        states={
+            DELETE_CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, drop_card_confirm)],
+            DELETE_BTN: [CallbackQueryHandler(delete_button)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+        ))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
 
-    # print(f"Using API: {api_url}")
     if admin_ids:
         print(f"Admin IDs enabled: {sorted(admin_ids)}")
     app.run_polling(close_loop=False)
