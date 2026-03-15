@@ -7,7 +7,6 @@ import os
 import requests
 from dotenv import load_dotenv
 from anthropic import Anthropic
-from openai import OpenAI
 
 
 print("Yay! All libraries imported successfully!\n")
@@ -41,7 +40,7 @@ client = Anthropic(api_key=CLAUDE_API_KEY, base_url=MODEL_BASE_URL)
 def marcram_chat(user_question):
     system_prompt = """
         You are a helpful study buddy that assists students in clarifying topics.
-        Always search the web for answers. Always cite your source.
+        Always search the web for answers. Always cite your sources with links.
         Reply in less than 150 words, and in a text message format.
         
         For example: "Ahem! According to [link], [answer]"
@@ -81,7 +80,7 @@ def marcram_chat(user_question):
         )
 
     # Extract text from response content blocks
-    print(response);
+    # print(response);
     
     text_response = " ".join(block.text for block in response.content if block.type == "text")
     print (text_response)

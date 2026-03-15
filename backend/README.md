@@ -22,7 +22,7 @@ source .venv/bin/activate
 
 ### 3. Install Dependencies
 ```bash
-pip install python-dotenv anthropic requests uvicorn fastapi openai
+pip install python-dotenv anthropic requests uvicorn fastapi 
 ```
 
 ### 4. Configure Environment Variables
