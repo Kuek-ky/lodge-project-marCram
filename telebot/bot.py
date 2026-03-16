@@ -489,11 +489,11 @@ async def deployment(app: Application):
             Route("/healthcheck", health, methods=["GET"]),
         ]
     )
+    
     webserver = uvicorn.Server(
         config=uvicorn.Config(
             app=starlette_app,
             port=int(TELE_PORT),
-            use_colors=False,
             host="0.0.0.0",
         )
     )
@@ -503,5 +503,5 @@ async def deployment(app: Application):
         await webserver.serve()
         await app.stop()
 
-if __name__ == "__main__":
-        main()
+# if __name__ == "__main__":
+#         main()
