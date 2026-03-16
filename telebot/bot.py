@@ -25,6 +25,7 @@ from telegram.ext import (
 
 )
 
+
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -32,7 +33,7 @@ from starlette.responses import PlainTextResponse, Response
 from starlette.routing import Route
 import asyncio
 
-
+import html
 import datetime
 
 # Load environment variables from .env file
@@ -89,7 +90,7 @@ async def post_init(application):
         for chat_id, job_name, text, interval in rows:
             application.job_queue.run_repeating(
                 card_job,
-                interval=float(interval),
+                interval=int(interval),
                 chat_id=chat_id,
                 name=job_name,
                 data=text
@@ -152,11 +153,11 @@ async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     if any(job.name == card_name for job in context.job_queue.jobs()):
         await update.message.reply_text(
-            text=f"Oh dear, looks like '{card_name}' already exists! Please give me another name!"
+            text=f"Oh dear, looks like '{html.escape(card_name)}' already exists! Please give me another name!"
         )
         return QUESTION
     
-    context.user_data["card_name"] = card_name    
+    context.user_data["card_name"] = html.escape(card_name)    
     await update.message.reply_text(text="What is the question?")
     
     context.user_data["previous_state"] = "QUESTION"
@@ -165,10 +166,8 @@ async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 #CONTENT
 async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE): 
 
-    #esc characters
-    card_content =  re.sub(r"<|_|\*|>|\||\/", r"\\\g<0>", update.message.text)
-    
-    context.user_data['content'] = card_content
+    card_content = update.message.text
+    context.user_data['content'] = html.escape(card_content)
     card_name = context.user_data["card_name"]    
     
     text = f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>\n" + ("_" * 25)  + "\n<b>What will the answer be?</b>"
@@ -181,7 +180,7 @@ async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #FREQUENCY
 async def new_card_frequency(update: Update, context: ContextTypes.DEFAULT_TYPE):
     card_answer = update.message.text
-    context.user_data['answer'] = card_answer
+    context.user_data['answer'] = html.escape(card_answer)
     card_content = context.user_data['content']
     card_name = context.user_data["card_name"]    
     
