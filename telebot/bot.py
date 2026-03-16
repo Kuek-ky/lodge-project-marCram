@@ -165,7 +165,9 @@ async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 #CONTENT
 async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE): 
 
-    card_content = update.message.text
+    #esc characters
+    card_content =  re.sub(r"<|_|\*|>|\||\/", r"\\\g<0>", update.message.text)
+    
     context.user_data['content'] = card_content
     card_name = context.user_data["card_name"]    
     
