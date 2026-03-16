@@ -168,7 +168,7 @@ async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE): 
 
     card_content = update.message.text
-    context.user_data['content'] = html.escape(card_content)
+    context.user_data['content'] = card_content
     card_name = context.user_data["card_name"]    
     
     text = f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>\n" + ("_" * 25)  + "\n<b>What will the answer be?</b>"
@@ -333,7 +333,7 @@ async def card_job(context: CallbackContext):
 
     await context.bot.send_message(chat_id=context.job.chat_id, text="DING DING! Time for a recall!!")
     await context.bot.send_message(chat_id=context.job.chat_id, 
-                                text=html.escape(flashcard_data)
+                                text=flashcard_data
                                 , parse_mode= "HTML")
     
 
