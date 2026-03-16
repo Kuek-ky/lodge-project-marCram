@@ -108,7 +108,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if not update.message or not update.message.text:
         return
 
-    api_url: str = context.bot_data["API_BASE_URL"]
+    api_url: str = API_BASE_URL
     user_text = update.message.text.strip()
 
     if not user_text:
