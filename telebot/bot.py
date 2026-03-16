@@ -485,7 +485,7 @@ async def deployment(app):
     webserver = uvicorn.Server(
         config=uvicorn.Config(
             app=starlette_app,
-            port=TELE_PORT,
+            port=int(TELE_PORT),
             use_colors=False,
             host="0.0.0.0",  # NOTE: Render requires you to bind your webserver to 0.0.0.0
         )
