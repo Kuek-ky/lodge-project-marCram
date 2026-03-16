@@ -154,7 +154,7 @@ async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     if any(job.name == card_name for job in context.job_queue.jobs()):
         await update.message.reply_text(
-            text=f"Oh dear, looks like '{html.escape(card_name)}' already exists! Please give me another name!"
+            text=f"Oh dear, looks like '{html.escape(card_name)}' already exists! Please give me another name!", parse_mode="HTML"
         )
         return QUESTION
     
@@ -168,7 +168,7 @@ async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE): 
 
     card_content = update.message.text
-    context.user_data['content'] = card_content
+    context.user_data['content'] = html.escape(card_content)
     card_name = context.user_data["card_name"]    
     
     text = f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>\n" + ("_" * 25)  + "\n<b>What will the answer be?</b>"
@@ -300,9 +300,7 @@ async def confirm_button(update: Update, context: CallbackContext) -> int:
                     content = f"<b><u>{card_name}</u></b>\n\n<b>Question:</b>\n<code>" + card_content + "</code>\n" + ("_" * 25) + "\n<b>Answer:</b>\n<span class='tg-spoiler'><b>" + card_answer + "</b></span>"
                                 
                     await query.message.reply_text(text="Alright, card created!! Here is a preview of your new card!")
-                    await query.message.reply_text(
-                                text=content
-                                , parse_mode= "HTML")
+                    await query.message.reply_text(text=content, parse_mode= "HTML")
                     
                     database_model.insert_flashcard(chat_id, card_name, content, float(card_repeat));
                     
@@ -333,7 +331,7 @@ async def card_job(context: CallbackContext):
 
     await context.bot.send_message(chat_id=context.job.chat_id, text="DING DING! Time for a recall!!")
     await context.bot.send_message(chat_id=context.job.chat_id, 
-                                text=flashcard_data
+                                text=html.escape(flashcard_data)
                                 , parse_mode= "HTML")
     
 
