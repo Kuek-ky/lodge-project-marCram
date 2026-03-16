@@ -38,7 +38,6 @@ def select_all_flashcards():
                 cur.execute("SELECT chatid, card_title, flashcard, intervals FROM flashcards", 
                             )
                 rows = cur.fetchall()
-                print(row)
                 print(f"Selected {len(rows)} flashcards.")
                 return rows
                 
