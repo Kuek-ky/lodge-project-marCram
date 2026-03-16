@@ -426,7 +426,6 @@ def main() -> None:
     admin_ids = _parse_admin_ids(os.getenv("TELEGRAM_ADMIN_IDS"))
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
-
     app.bot_data["API_BASE_URL"] = API_BASE_URL
     app.bot_data["TELEGRAM_ADMIN_IDS"] = admin_ids
 
@@ -458,22 +457,31 @@ def main() -> None:
         print(f"Admin IDs enabled: {sorted(admin_ids)}")
     app.run_polling(close_loop=False)
     
-    if (TELE_RENDER_URL != None):
-        deployment(app)
+    if TELE_RENDER_URL is not None:
+        # Webhook mode (production/Render)
+        asyncio.run(deployment(app))
+    else:
+        # Polling mode (local dev) — first clear any old webhook
+        asyncio.run(app.bot.delete_webhook())
+        app.run_polling()
+
     
 
-async def deployment(app):
-    await app.bot.set_webhook(url=f"{TELE_RENDER_URL.strip()}/telegram", allowed_updates=Update.ALL_TYPES)
-     # Set up webserver
+async def deployment(app: Application):
+    # Clear any old polling sessions first
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    await app.bot.set_webhook(
+        url=f"{TELE_RENDER_URL.strip()}/telegram",
+        allowed_updates=Update.ALL_TYPES
+    )
+
     async def telegram(request: Request) -> Response:
-        """Handle incoming Telegram updates by putting them into the `update_queue`"""
         await app.update_queue.put(
             Update.de_json(data=await request.json(), bot=app.bot)
         )
         return Response()
 
     async def health(_: Request) -> PlainTextResponse:
-        """For the health endpoint, reply with a simple plain text message."""
         return PlainTextResponse(content="The bot is still running fine :)")
 
     starlette_app = Starlette(
@@ -487,18 +495,14 @@ async def deployment(app):
             app=starlette_app,
             port=int(TELE_PORT),
             use_colors=False,
-            host="0.0.0.0",  # NOTE: Render requires you to bind your webserver to 0.0.0.0
+            host="0.0.0.0",
         )
     )
-    
-        # Run application and webserver together
+
     async with app:
         await app.start()
         await webserver.serve()
         await app.stop()
 
 if __name__ == "__main__":
-    if (TELE_RENDER_URL != None) :
-        asyncio.run(main())
-    else:
         main()
