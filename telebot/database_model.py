@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Get the connection string from the environment variable
-conn_string = os.getenv("DATABASE_URL")
+conn_string = os.getenv("DATABASE_URL").strip()
 
 def select_flashcard(chatid, title):
     try:
@@ -38,6 +38,7 @@ def select_all_flashcards():
                 cur.execute("SELECT chatid, card_title, flashcard, intervals FROM flashcards", 
                             )
                 rows = cur.fetchall()
+                print(row)
                 print(f"Selected {len(rows)} flashcards.")
                 return rows
                 

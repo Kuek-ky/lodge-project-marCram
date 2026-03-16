@@ -65,7 +65,7 @@ def marcram_chat(user_question):
     
     response = client.messages.create(
         model=CHAT_MODEL,  # or your model
-        max_tokens=250,
+        max_tokens=400,
         system=system_prompt,
         tools=[
             {
@@ -81,7 +81,7 @@ def marcram_chat(user_question):
         )
 
     # Extract text from response content blocks
-    print(response);
+    # print(response);
     
     text_response = " ".join(block.text for block in response.content if block.type == "text")
     # print (text_response)
