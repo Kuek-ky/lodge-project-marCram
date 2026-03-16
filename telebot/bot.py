@@ -85,21 +85,22 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
     
 async def post_init(application):
+    await _load_flashcards(application)
+    
+async def _load_flashcards(app: Application):
     try:
         rows = database_model.select_all_flashcards() or []
         for chat_id, job_name, text, interval in rows:
-            application.job_queue.run_repeating(
+            app.job_queue.run_repeating(
                 card_job,
                 interval=int(interval),
                 chat_id=chat_id,
                 name=job_name,
                 data=text
             )
-        print(f"[post_init] Loaded {len(rows)} flashcard(s) from DB.")
+        print(f"Loaded {len(rows)} flashcard(s) from DB.")
     except Exception as e:
-        print(f"[post_init] DB error — cards not loaded: {e}")
-    
-
+        print(f"DB error — cards not loaded: {e}")
     
 # ==================== MESSAGING CLAUDE ====================
 
@@ -505,6 +506,7 @@ async def deployment(app: Application):
 
     async with app:
         await app.start()
+        await _load_flashcards(app)
         await webserver.serve()
         await app.stop()
 
