@@ -455,13 +455,12 @@ def main() -> None:
 
     if admin_ids:
         print(f"Admin IDs enabled: {sorted(admin_ids)}")
-    app.run_polling(close_loop=False)
-    
+
     if TELE_RENDER_URL is not None:
         # Webhook mode (production/Render)
         asyncio.run(deployment(app))
     else:
-        # Polling mode (local dev) — first clear any old webhook
+        # Polling mode (local dev)
         asyncio.run(app.bot.delete_webhook())
         app.run_polling()
 
@@ -503,5 +502,5 @@ async def deployment(app: Application):
         await webserver.serve()
         await app.stop()
 
-# if __name__ == "__main__":
-#         main()
+if __name__ == "__main__":
+        main()
