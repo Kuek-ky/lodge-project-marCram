@@ -182,7 +182,7 @@ async def new_card_frequency(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     await update.message.reply_text(f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>"
                                     + "\n<b>and the answer will be: </b>\n<code>" + card_answer + "</code>\n" + ("_" * 25)  
-                                    + "\n<b><i>In terms of hours or days, How often should I send this card to you?</i></b>"
+                                    + "\n<b><i>How often should I send this card to you? In terms of hours, seconds etc.</i></b>"
                                     ,parse_mode='HTML')
     context.user_data["previous_state"] = "FREQUENCY"
     
