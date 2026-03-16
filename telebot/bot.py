@@ -331,7 +331,7 @@ async def card_job(context: CallbackContext):
 
     await context.bot.send_message(chat_id=context.job.chat_id, text="DING DING! Time for a recall!!")
     await context.bot.send_message(chat_id=context.job.chat_id, 
-                                text=html.escape(flashcard_data)
+                                text=flashcard_data
                                 , parse_mode= "HTML")
     
 
@@ -348,7 +348,7 @@ async def view_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
             next_str = next_run.astimezone().strftime("%Y-%m-%d %H:%M:%S%I:%M:%S %p")
         else:
             next_str = "N/A"
-        lines.append(f"• <code>{html.escape(job.name)}</code> | next run: {next_str}")
+        lines.append(f"• <code>{job.name}</code> | next run: {next_str}")
 
     await update.message.reply_text("<b> Running cards:</b>\n" + "\n".join(lines), parse_mode = "HTML")
     
@@ -392,11 +392,11 @@ async def delete_button(update: Update, context: CallbackContext) -> int:
 
     card_name = context.user_data["card_name"]
     if query.data == "yes":
-        database_model.delete_flashcard(update.effective_chat.id, html.escape(card_name));
-        for job in context.job_queue.get_jobs_by_name(html.escape(card_name)):
+        database_model.delete_flashcard(update.effective_chat.id, card_name);
+        for job in context.job_queue.get_jobs_by_name(card_name):
             job.schedule_removal()
             
-        await query.message.reply_text(f"Deleted <code>{html.escape(card_name)}</code> D:", parse_mode="HTML")
+        await query.message.reply_text(f"Deleted <code>{card_name}</code> D:", parse_mode="HTML")
     else:
         await query.message.reply_text("Delete cancelled.")
     
