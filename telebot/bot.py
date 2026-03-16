@@ -39,8 +39,8 @@ import datetime
 load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL").strip()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN").strip()
-TELE_RENDER_URL = os.environ.get("TELE_RENDER_URL").strip() | 0
-TELE_PORT = os.environ.get("TELE_PORT").strip() | 0
+TELE_RENDER_URL = os.environ.get("TELE_RENDER_URL").strip() or None
+TELE_PORT = os.environ.get("TELE_PORT").strip() or 0
 
 def _parse_admin_ids(raw: str | None) -> set[int]:
     if not raw:
@@ -77,11 +77,23 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         "Commands:\n"
         "  /start - Welcome message\n"
-        "  /help - Show this help\n"
+        "  /help - Show this help message\n"
         "  /newCard - schedule a new flashcard\n"
         "  /viewCards - view flashcards\n"
         "  /dropCard - drop a card\n"
     )
+    
+async def post_init(application):
+    rows = database_model.select_all_flashcards()  # fetches all cards from postgres
+    if rows != None:
+        for chat_id, job_name, text, interval in rows:
+            application.job_queue.run_repeating(
+                card_job,
+                interval=float(interval),
+                chat_id=chat_id,
+                name=job_name,
+                data=text
+            )
     
 
     
@@ -135,20 +147,18 @@ async def new_card_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 #QUESTION
 async def new_card_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None: 
     card_name = update.message.text
-    while (any(job.name == card_name for job in context.job_queue.jobs())):
-        retry_name
-            
+    
+    if any(job.name == card_name for job in context.job_queue.jobs()):
+        await update.message.reply_text(
+            text=f"Oh dear, looks like '{card_name}' already exists! Please give me another name!"
+        )
+        return QUESTION
+    
     context.user_data["card_name"] = card_name    
     await update.message.reply_text(text="What is the question?")
     
     context.user_data["previous_state"] = "QUESTION"
     return CONTENT
-
-
-async def retry_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None: 
-    await update.message.reply_text(text="Oh dear, looks like " + card_name + " already exists! Please give me another name!" )
-    return QUESTION
-
 
 #CONTENT
 async def new_card_answer(update: Update, context: ContextTypes.DEFAULT_TYPE): 
@@ -217,12 +227,12 @@ async def new_card_confirm(update: Update, context: CallbackContext) -> int:
         
         timeString = timeString[:-2]
         
-        nextTime = (datetime.datetime.now()+ datetime.timedelta(seconds=timeLength)).strftime("%H:%M:%S %p")
+        nextTime = (datetime.datetime.now()+ datetime.timedelta(seconds=timeLength)).strftime("%Y-%m-%d, %a, %H:%M:%S %p")
         
         await update.message.reply_text(f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>\n" 
                                         + "\n<b>and the answer will be: </b>\n<code>" + card_answer + "</code>\n" + ("_" * 25)  
                                         + f"\nIn terms of hours or days, I will send this card in <code>{timeString}</code>!"
-                                        + f"\n\nOr, at approximately <code>{nextTime}</code>!"
+                                        + f"\n\nOr, at approximately at <code>{nextTime}</code>!"
                                         + "\n\n<b>Is this correct?</b>",parse_mode='HTML',reply_markup=reply_markup
         )
         context.user_data['intervals'] = timeLength;
@@ -326,7 +336,7 @@ async def card_job(context: CallbackContext):
 async def view_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jobs = context.job_queue.jobs()
     if not jobs:
-        await update.message.reply_text("No jobs running.")
+        await update.message.reply_text("No cards running.")
         return
 
     lines = []
@@ -338,7 +348,7 @@ async def view_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
             next_str = "N/A"
         lines.append(f"• <code>{job.name}</code> | next run: {next_str}")
 
-    await update.message.reply_text("<b> Running jobs:</b>\n" + "\n".join(lines), parse_mode = "HTML")
+    await update.message.reply_text("<b> Running cards:</b>\n" + "\n".join(lines), parse_mode = "HTML")
     
     
 
@@ -416,7 +426,7 @@ async def _call_claude(api_url: str, message: str) -> str:
 def main() -> None:
     admin_ids = _parse_admin_ids(os.getenv("TELEGRAM_ADMIN_IDS"))
 
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
     app.bot_data["API_BASE_URL"] = API_BASE_URL
     app.bot_data["TELEGRAM_ADMIN_IDS"] = admin_ids
@@ -449,14 +459,12 @@ def main() -> None:
         print(f"Admin IDs enabled: {sorted(admin_ids)}")
     app.run_polling(close_loop=False)
     
-    if (TELE_RENDER_URL != 0) {
+    if (TELE_RENDER_URL != None):
         deployment(app)
-    }
     
 
-
-def deployment(app):
-    await app.bot.set_webhook(url=f"{URL}/telegram", allowed_updates=Update.ALL_TYPES)
+async def deployment(app):
+    await app.bot.set_webhook(url=f"{TELE_RENDER_URL}/telegram", allowed_updates=Update.ALL_TYPES)
      # Set up webserver
     async def telegram(request: Request) -> Response:
         """Handle incoming Telegram updates by putting them into the `update_queue`"""
@@ -491,9 +499,7 @@ def deployment(app):
         await app.stop()
 
 if __name__ == "__main__":
-    if (TELE_RENDER_URL != 0) {
+    if (TELE_RENDER_URL != None) :
         asyncio.run(main())
-    } else{
+    else:
         main()
-    }
-

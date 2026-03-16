@@ -27,6 +27,24 @@ def select_flashcard(chatid, title):
         print("Connection failed.")
         print(e)
         
+def select_all_flashcards():
+    try:
+        with psycopg.connect(conn_string) as conn:
+            print("Connection to neondb established")
+
+            # Open a cursor to perform database operations
+            with conn.cursor() as cur:
+                
+                cur.execute("SELECT chatid, card_title, flashcard, intervals FROM flashcards", 
+                            )
+                rows = cur.fetchall()
+                print(f"Selected {len(rows)} flashcards.")
+                return rows
+                
+    except Exception as e:
+        print("Connection failed.")
+        print(e)
+        
         
 # def update_lastrun(chatid, title):
 #     try:
