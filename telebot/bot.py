@@ -231,7 +231,7 @@ async def new_card_confirm(update: Update, context: CallbackContext) -> int:
         
         timeString = timeString[:-2]
         
-        nextTime = (datetime.datetime.now()+ datetime.timedelta(seconds=timeLength)).strftime("%Y-%m-%d, %a, %H:%M:%S %p")
+        nextTime = (datetime.datetime.now()+ datetime.timedelta(seconds=timeLength)).strftime("%Y-%m-%d, %a, %I:%M:%S%p")
         
         await update.message.reply_text(f"<b>Ok, so the card's name is: </b>\n<code>" + card_name + "</code>\n<b>The question will be: </b>\n<code>" + card_content + "</code>\n" 
                                         + "\n<b>and the answer will be: </b>\n<code>" + card_answer + "</code>\n" + ("_" * 25)  
