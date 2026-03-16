@@ -347,7 +347,7 @@ async def view_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for job in jobs:
         next_run = job.next_t  # datetime of next scheduled run
         if next_run:
-            next_str = next_run.astimezone().strftime("%H:%M:%S %p")
+            next_str = next_run.astimezone().strftime("%Y-%m-%d %H:%M:%S%I:%M:%S %p")
         else:
             next_str = "N/A"
         lines.append(f"• <code>{job.name}</code> | next run: {next_str}")
