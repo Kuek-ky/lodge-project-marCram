@@ -39,8 +39,8 @@ import datetime
 load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL").strip()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN").strip()
-TELE_RENDER_URL = os.environ.get("TELE_RENDER_URL").strip() or None
-TELE_PORT = os.environ.get("TELE_PORT").strip() or 0
+TELE_RENDER_URL = os.environ.get("TELE_RENDER_URL") or None
+TELE_PORT = os.environ.get("TELE_PORT") or 0
 
 def _parse_admin_ids(raw: str | None) -> set[int]:
     if not raw:
@@ -124,7 +124,6 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text(f"API error: {e.response.status_code} {e.response.text}")
     except Exception as e:
         await update.message.reply_text(f"Error: {e}")
-    await update.message.reply_text("hi!")
     
 
 # ==================== TELEGRAM STATE HANDLERS ====================
@@ -464,7 +463,7 @@ def main() -> None:
     
 
 async def deployment(app):
-    await app.bot.set_webhook(url=f"{TELE_RENDER_URL}/telegram", allowed_updates=Update.ALL_TYPES)
+    await app.bot.set_webhook(url=f"{TELE_RENDER_URL.strip()}/telegram", allowed_updates=Update.ALL_TYPES)
      # Set up webserver
     async def telegram(request: Request) -> Response:
         """Handle incoming Telegram updates by putting them into the `update_queue`"""
