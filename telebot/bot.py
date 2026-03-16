@@ -84,8 +84,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
     
 async def post_init(application):
-    rows = database_model.select_all_flashcards()  # fetches all cards from postgres
-    if rows != None:
+    try:
+        rows = database_model.select_all_flashcards() or []
         for chat_id, job_name, text, interval in rows:
             application.job_queue.run_repeating(
                 card_job,
@@ -94,6 +94,9 @@ async def post_init(application):
                 name=job_name,
                 data=text
             )
+        print(f"[post_init] Loaded {len(rows)} flashcard(s) from DB.")
+    except Exception as e:
+        print(f"[post_init] DB error — cards not loaded: {e}")
     
 
     
@@ -468,6 +471,8 @@ def main() -> None:
 
 async def deployment(app: Application):
     # Clear any old polling sessions first
+    await app.bot.delete_webhook(drop_pending_updates=True)  # ← add this line
+    
     await app.bot.set_webhook(
         url=f"{TELE_RENDER_URL.strip()}/telegram",
         allowed_updates=Update.ALL_TYPES
