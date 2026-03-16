@@ -24,12 +24,23 @@ from telegram.ext import (
     CallbackQueryHandler,
 
 )
+
+import uvicorn
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse, Response
+from starlette.routing import Route
+import asyncio
+
+
 import datetime
 
 # Load environment variables from .env file
 load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL").strip()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN").strip()
+TELE_RENDER_URL = os.environ.get("TELE_RENDER_URL").strip() | 0
+TELE_PORT = os.environ.get("TELE_PORT").strip() | 0
 
 def _parse_admin_ids(raw: str | None) -> set[int]:
     if not raw:
@@ -437,8 +448,52 @@ def main() -> None:
     if admin_ids:
         print(f"Admin IDs enabled: {sorted(admin_ids)}")
     app.run_polling(close_loop=False)
+    
+    if (TELE_RENDER_URL != 0) {
+        deployment(app)
+    }
+    
 
+
+def deployment(app):
+    await app.bot.set_webhook(url=f"{URL}/telegram", allowed_updates=Update.ALL_TYPES)
+     # Set up webserver
+    async def telegram(request: Request) -> Response:
+        """Handle incoming Telegram updates by putting them into the `update_queue`"""
+        await app.update_queue.put(
+            Update.de_json(data=await request.json(), bot=app.bot)
+        )
+        return Response()
+
+    async def health(_: Request) -> PlainTextResponse:
+        """For the health endpoint, reply with a simple plain text message."""
+        return PlainTextResponse(content="The bot is still running fine :)")
+
+    starlette_app = Starlette(
+        routes=[
+            Route("/telegram", telegram, methods=["POST"]),
+            Route("/healthcheck", health, methods=["GET"]),
+        ]
+    )
+    webserver = uvicorn.Server(
+        config=uvicorn.Config(
+            app=starlette_app,
+            port=TELE_PORT,
+            use_colors=False,
+            host="0.0.0.0",  # NOTE: Render requires you to bind your webserver to 0.0.0.0
+        )
+    )
+    
+        # Run application and webserver together
+    async with app:
+        await app.start()
+        await webserver.serve()
+        await app.stop()
 
 if __name__ == "__main__":
-    main()
+    if (TELE_RENDER_URL != 0) {
+        asyncio.run(main())
+    } else{
+        main()
+    }
 

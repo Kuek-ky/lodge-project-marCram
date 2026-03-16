@@ -83,7 +83,7 @@ def marcram_chat(user_question):
     # print(response);
     
     text_response = " ".join(block.text for block in response.content if block.type == "text")
-    print (text_response)
+    # print (text_response)
     return text_response
 
 

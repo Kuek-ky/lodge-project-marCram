@@ -45,4 +45,4 @@ def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, port=int(API_BASE_PORT))
+    uvicorn.run(app, port=int(API_BASE_PORT), host="0.0.0.0",)
