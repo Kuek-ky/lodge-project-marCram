@@ -469,7 +469,6 @@ def main() -> None:
 
 async def deployment(app: Application):
     # Clear any old polling sessions first
-    await app.bot.delete_webhook(drop_pending_updates=True)
     await app.bot.set_webhook(
         url=f"{TELE_RENDER_URL.strip()}/telegram",
         allowed_updates=Update.ALL_TYPES
