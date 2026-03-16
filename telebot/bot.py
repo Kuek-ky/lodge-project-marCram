@@ -375,7 +375,7 @@ async def drop_card_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
 
     if (bool(context.job_queue.get_jobs_by_name(name))):
-        context.user_data["card_name"] = html.escape(name)    
+        context.user_data["card_name"] = name    
         
         await update.message.reply_text(f"Are you sure you want to delete <code>{name}</code>?", parse_mode="HTML", reply_markup = delete_markup)
         return DELETE_BTN
