@@ -217,7 +217,7 @@ async def new_card_confirm(update: Update, context: CallbackContext) -> int:
         else:  
             timeLength += val
                 
-    if (timeLength > 0):
+    if (timeLength > 10):
         timeString = ""
         days = timeLength // 86400
         hours = (timeLength % 86400) // 3600
@@ -246,7 +246,7 @@ async def new_card_confirm(update: Update, context: CallbackContext) -> int:
         
     else:
         context.user_data["is_invalid"] = True;
-        await update.message.reply_text(f"Whoops! Looks like you made an invalid input, do you still want to continue?"
+        await update.message.reply_text(f"Whoops! Looks like you made an invalid input, or your interval is way too short! Do you still want to continue?"
                                         ,parse_mode='HTML',reply_markup=reply_markup)
         return CONFIRM_BTN
         
@@ -343,12 +343,17 @@ async def view_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     lines = []
     for job in jobs:
-        next_run = job.next_t  # datetime of next scheduled run
-        if next_run:
-            next_str = next_run.astimezone().strftime("%Y-%m-%d %I:%M:%S%p")
-        else:
-            next_str = "N/A"
-        lines.append(f"• <code>{job.name}</code> | next run: {next_str}")
+        if (job.chat_id == update.effective_chat.id):
+            next_run = job.next_t  # datetime of next scheduled run
+            if next_run:
+                next_str = next_run.astimezone().strftime("%Y-%m-%d %I:%M:%S%p")
+            else:
+                next_str = "N/A"
+            lines.append(f"• <code>{job.name}</code> | next run: {next_str}")
+    
+    if (len(lines) == 0):
+        await update.message.reply_text("No cards running.")
+        return
 
     await update.message.reply_text("<b> Running cards:</b>\n" + "\n".join(lines), parse_mode = "HTML")
     
